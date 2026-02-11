@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { searchProductPrice } from './services/geminiService';
 import { PriceResult, SearchHistoryItem } from './types';
 import Header from './components/Header';
 import SearchBox from './components/SearchBox';
 import ResultDisplay from './components/ResultDisplay';
 import LoadingState from './components/LoadingState';
+import HowItWorks from './components/HowItWorks';
 
 const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -13,9 +14,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   useEffect(() => {
-    // Attempt to get user location for better results
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -28,7 +29,6 @@ const App: React.FC = () => {
       );
     }
     
-    // Load history from local storage
     const savedHistory = localStorage.getItem('price_search_history');
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
@@ -46,7 +46,6 @@ const App: React.FC = () => {
       const data = await searchProductPrice(query, userLocation);
       setResult(data);
       
-      // Update history
       const newHistoryItem: SearchHistoryItem = {
         id: Date.now().toString(),
         query,
@@ -64,6 +63,12 @@ const App: React.FC = () => {
     }
   };
 
+  const resetApp = () => {
+    setResult(null);
+    setError(null);
+    setLoading(false);
+  };
+
   const clearHistory = () => {
     setHistory([]);
     localStorage.removeItem('price_search_history');
@@ -71,42 +76,44 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header />
+      <Header onReset={resetApp} onShowHowItWorks={() => setShowHowItWorks(true)} />
       
       <main className="flex-grow container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-6 md:p-10 mb-8">
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-extrabold text-slate-800 mb-2">חיפוש מחיר זול</h2>
-            <p className="text-slate-500">הכנס שם של מוצר ונמצא עבורך את המחיר המשתלם ביותר בישראל</p>
-          </div>
-
-          <SearchBox onSearch={handleSearch} isLoading={loading} />
-
-          {history.length > 0 && !loading && !result && (
-            <div className="mt-8">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-slate-700">חיפושים אחרונים</h3>
-                <button 
-                  onClick={clearHistory}
-                  className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  נקה הכל
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {history.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSearch(item.query)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-sm transition-colors border border-slate-200"
-                  >
-                    {item.query}
-                  </button>
-                ))}
-              </div>
+        {!result && !loading && (
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-6 md:p-10 mb-8 animate-in fade-in duration-500">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-extrabold text-slate-800 mb-2">חיפוש מחיר זול</h2>
+              <p className="text-slate-500">הכנס שם של מוצר ונמצא עבורך את המחיר המשתלם ביותר בישראל</p>
             </div>
-          )}
-        </div>
+
+            <SearchBox onSearch={handleSearch} isLoading={loading} />
+
+            {history.length > 0 && (
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-slate-700">חיפושים אחרונים</h3>
+                  <button 
+                    onClick={clearHistory}
+                    className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    נקה הכל
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {history.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSearch(item.query)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-sm transition-colors border border-slate-200"
+                    >
+                      {item.query}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading && <LoadingState />}
         
@@ -118,16 +125,31 @@ const App: React.FC = () => {
               </svg>
               <p className="text-red-700 font-medium">{error}</p>
             </div>
+            <button onClick={resetApp} className="mt-4 text-blue-600 font-bold underline">חזרה לחיפוש</button>
           </div>
         )}
 
-        {result && <ResultDisplay result={result} />}
+        {result && (
+          <div className="space-y-6">
+            <ResultDisplay result={result} />
+            <div className="text-center">
+              <button 
+                onClick={resetApp}
+                className="bg-slate-200 text-slate-700 px-8 py-3 rounded-2xl font-bold hover:bg-slate-300 transition-all"
+              >
+                חיפוש מוצר נוסף
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="py-6 text-center text-slate-400 text-sm">
         <p>© {new Date().getFullYear()} צ'ק מחיר - כל הזכויות שמורות</p>
         <p className="mt-1">המידע מבוסס על חיפוש AI בזמן אמת</p>
       </footer>
+
+      {showHowItWorks && <HowItWorks onClose={() => setShowHowItWorks(false)} />}
     </div>
   );
 };
