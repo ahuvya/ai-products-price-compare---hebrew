@@ -1,34 +1,37 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { PriceResult } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-export const searchProductPrice = async (productName: string, location?: { lat: number, lng: number }): Promise<PriceResult> => {
+export const searchProductPrice = async (
+  productName: string, 
+  locationContext: string
+): Promise<PriceResult> => {
   const modelName = 'gemini-3-flash-preview';
   
-  const locationContext = location 
-    ? `User location: Latitude ${location.lat}, Longitude ${location.lng}.`
-    : "General location: Israel.";
-
   const prompt = `
-    Quickly find the top 5 cheapest prices for "${productName}" in Israel. 
-    Check retailers like Shufersal, Rami Levy, Victory, or sites like CHP.co.il.
+    Find the 5 absolute cheapest price options for the category or product "${productName}" in Israel. 
     
+    IMPORTANT BRAND COMPARISON RULE: 
+    Do not just look for the specific brand mentioned. If a user asks for "Tnuva Milk", also find and prioritize cheaper alternatives like "Tara" or supermarket house brands (Rami Levy, Shufersal, etc.) if they are cheaper for the same volume. 
+    The goal is to save the user money by finding the cheapest BRAND in that category.
+
+    LOCATION CONTEXT: 
     ${locationContext}
 
-    Focus on speed. Provide a list of up to 5 best results in Hebrew.
-    Ensure prices are comparable (e.g., per unit/100g).
+    Check retailers like Shufersal, Rami Levy, Victory, Yohananof, and comparison sites like CHP.co.il or Zap.
+    Focus on price per unit/100g/liter to ensure fair comparison.
 
-    Return ONLY a JSON object:
+    Return ONLY a JSON object in Hebrew:
     {
       "topResults": [
         {
-          "productName": "string",
-          "price": "string (e.g. ₪10.00)",
+          "productName": "string (e.g. חלב 3%)",
+          "price": "string (e.g. ₪5.50)",
           "storeName": "string",
           "brand": "string",
-          "valueNote": "string"
+          "valueNote": "string (e.g. המחיר הזול ביותר לקטגוריה)"
         }
       ],
       "summary": "string"
@@ -42,7 +45,6 @@ export const searchProductPrice = async (productName: string, location?: { lat: 
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
-        // Disable thinking budget to minimize latency for quick responses
         thinkingConfig: { thinkingBudget: 0 }
       },
     });

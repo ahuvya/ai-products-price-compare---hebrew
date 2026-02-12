@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { searchProductPrice } from './services/geminiService';
-import { PriceResult, SearchHistoryItem } from './types';
+import { PriceResult, SearchHistoryItem, LocationState } from './types';
 import Header from './components/Header';
 import SearchBox from './components/SearchBox';
 import ResultDisplay from './components/ResultDisplay';
@@ -13,17 +13,23 @@ const App: React.FC = () => {
   const [result, setResult] = useState<PriceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [location, setLocation] = useState<LocationState>({
+    mode: 'auto',
+    customValue: ''
+  });
 
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
+          setLocation(prev => ({
+            ...prev,
+            coords: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            }
+          }));
         },
         () => console.log("Location access denied")
       );
@@ -35,15 +41,23 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query: string, searchLocation?: LocationState) => {
+    const locToUse = searchLocation || location;
     if (!query.trim()) return;
     
     setLoading(true);
     setError(null);
     setResult(null);
 
+    let locationContext = "General Israel.";
+    if (locToUse.mode === 'custom' && locToUse.customValue) {
+      locationContext = `Search specifically in or near the city/area: ${locToUse.customValue}, Israel.`;
+    } else if (locToUse.mode === 'auto' && locToUse.coords) {
+      locationContext = `Search near user GPS coordinates: Lat ${locToUse.coords.lat}, Lng ${locToUse.coords.lng}.`;
+    }
+
     try {
-      const data = await searchProductPrice(query, userLocation);
+      const data = await searchProductPrice(query, locationContext);
       setResult(data);
       
       const newHistoryItem: SearchHistoryItem = {
@@ -82,11 +96,15 @@ const App: React.FC = () => {
         {!result && !loading && (
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-6 md:p-10 mb-8 animate-in fade-in duration-500">
             <div className="mb-8 text-center">
-              <h2 className="text-3xl font-extrabold text-slate-800 mb-2">חיפוש מחיר זול</h2>
-              <p className="text-slate-500">הכנס שם של מוצר ונמצא עבורך את המחיר המשתלם ביותר בישראל</p>
+              <h2 className="text-3xl font-extrabold text-slate-800 mb-2">חיפוש המחיר הכי זול</h2>
+              <p className="text-slate-500">אנחנו נבדוק עבורכם את כל המותגים והחנויות ונמצא את ההצעה הכי משתלמת</p>
             </div>
 
-            <SearchBox onSearch={handleSearch} isLoading={loading} />
+            <SearchBox 
+              onSearch={handleSearch} 
+              isLoading={loading} 
+              initialLocation={location}
+            />
 
             {history.length > 0 && (
               <div className="mt-8">
@@ -146,7 +164,7 @@ const App: React.FC = () => {
 
       <footer className="py-6 text-center text-slate-400 text-sm">
         <p>© {new Date().getFullYear()} צ'ק מחיר - כל הזכויות שמורות</p>
-        <p className="mt-1">המידע מבוסס על חיפוש AI בזמן אמת</p>
+        <p className="mt-1">המידע מבוסס על השוואת מותגים וחנויות בזמן אמת</p>
       </footer>
 
       {showHowItWorks && <HowItWorks onClose={() => setShowHowItWorks(false)} />}
